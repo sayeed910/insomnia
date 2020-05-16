@@ -75,6 +75,8 @@ const BASE_CODEMIRROR_OPTIONS = {
   gutters: ['CodeMirror-lint-markers'],
 };
 
+CodeMirror.Vim.map('jj', '<Esc>', 'insert');
+
 @autobind
 class CodeEditor extends React.Component {
   constructor(props) {
