@@ -29,6 +29,7 @@ import {
   PREVIEW_MODE_SOURCE,
   getAppName,
   getAppId,
+  CONTENT_TYPE_MOUCHAK,
 } from '../../common/constants';
 import * as globalActions from '../redux/modules/global';
 import * as entitiesActions from '../redux/modules/entities';
@@ -71,7 +72,7 @@ import ErrorBoundary from '../components/error-boundary';
 import * as plugins from '../../plugins';
 import * as templating from '../../templating/index';
 import AskModal from '../components/modals/ask-modal';
-import { updateMimeType } from '../../models/request';
+import { statusGetRequest, updateMimeType } from '../../models/request';
 import MoveRequestGroupModal from '../components/modals/move-request-group-modal';
 import * as themes from '../../plugins/misc';
 import ExportRequestsModal from '../components/modals/export-requests-modal';
@@ -708,6 +709,7 @@ class App extends PureComponent {
   async _handleSendRequestWithEnvironment(requestId, environmentId) {
     const { handleStartLoading, handleStopLoading, settings } = this.props;
     const request = await models.request.getById(requestId);
+    const isMouchakRequest = request.body.mimeType === CONTENT_TYPE_MOUCHAK;
     if (!request) {
       return;
     }
@@ -722,8 +724,17 @@ class App extends PureComponent {
     handleStartLoading(requestId);
 
     try {
-      const responsePatch = await network.send(requestId, environmentId);
-      await models.response.create(responsePatch, settings.maxHistoryResponses);
+      const responsePatch1 = await network.send(requestId, environmentId);
+      if (isMouchakRequest) {
+        const environment = await models.environment.getById(environmentId);
+        const timeout = environment && environment.data.timeout ? environment.data.timeout : 1000;
+        const getRequest = statusGetRequest(request);
+        await new Promise(resolve => setTimeout(() => resolve(true), timeout));
+        const responsePatch2 = await network.send(null, null, null, getRequest);
+        await models.response.create(responsePatch2, settings.maxHistoryResponses);
+      } else {
+        await models.response.create(responsePatch1, settings.maxHistoryResponses);
+      }
     } catch (err) {
       if (err.type === 'render') {
         showModal(RequestRenderErrorModal, { request, error: err });

@@ -414,7 +414,7 @@ class CodeEditor extends React.Component {
       return false;
     }
 
-    return mode.indexOf('json') !== -1;
+    return mode.indexOf('json') !== -1 || mode.indexOf('msgpack') !== -1;
   }
 
   static _isYAML(mode) {

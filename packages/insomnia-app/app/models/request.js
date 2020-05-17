@@ -16,6 +16,7 @@ import {
   CONTENT_TYPE_FORM_URLENCODED,
   CONTENT_TYPE_GRAPHQL,
   CONTENT_TYPE_JSON,
+  CONTENT_TYPE_MOUCHAK,
   CONTENT_TYPE_OTHER,
   getContentTypeFromHeaders,
   HAWK_ALGORITHM_SHA256,
@@ -262,10 +263,15 @@ export function updateMimeType(
   const contentTypeHeader = getContentTypeHeader(headers);
 
   // GraphQL uses JSON content-type
-  const contentTypeHeaderValue = mimeType === CONTENT_TYPE_GRAPHQL ? CONTENT_TYPE_JSON : mimeType;
+  let contentTypeHeaderValue = mimeType;
+  if (mimeType === CONTENT_TYPE_GRAPHQL) {
+    contentTypeHeaderValue = CONTENT_TYPE_JSON;
+  } else if (mimeType === CONTENT_TYPE_MOUCHAK) {
+    contentTypeHeaderValue = 'application/msgpack';
+  }
 
   // GraphQL must be POST
-  if (mimeType === CONTENT_TYPE_GRAPHQL) {
+  if (mimeType === CONTENT_TYPE_GRAPHQL || mimeType === CONTENT_TYPE_MOUCHAK) {
     request.method = METHOD_POST;
   }
 
@@ -339,6 +345,19 @@ export function updateMimeType(
   } else {
     return update(request, { headers, body });
   }
+}
+
+export function statusGetRequest(originalRequest: Request): Request {
+  const request = JSON.parse(JSON.stringify(originalRequest));
+  request.method = 'GET';
+  request.body.mimeType = 'application/json';
+  request.body.text = '';
+  for (const header of request.headers) {
+    if (header.name.toLowerCase() === 'content-type') {
+      header.value = 'application/json';
+    }
+  }
+  return request;
 }
 
 export async function duplicate(request: Request, patch: $Shape<Request> = {}): Promise<Request> {

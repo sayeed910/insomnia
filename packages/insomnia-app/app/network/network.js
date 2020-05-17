@@ -25,6 +25,7 @@ import {
   AUTH_NTLM,
   CONTENT_TYPE_FORM_DATA,
   CONTENT_TYPE_FORM_URLENCODED,
+  CONTENT_TYPE_MOUCHAK,
   getAppVersion,
   getTempDir,
   STATUS_CODE_PLUGIN_ERROR,
@@ -50,6 +51,7 @@ import {
   setDefaultProtocol,
   smartEncodeUrl,
 } from 'insomnia-url';
+import { encode } from '@msgpack/msgpack';
 import fs from 'fs';
 import * as db from '../common/database';
 import * as CACerts from './cacert';
@@ -483,8 +485,28 @@ export async function _actuallySend(
       let noBody = false;
       let requestBody = null;
       const expectsBody = ['POST', 'PUT', 'PATCH'].includes(renderedRequest.method.toUpperCase());
+      const contentTypeHeader = getContentTypeHeader(renderedRequest.headers);
+      const isMsgpack = contentTypeHeader && contentTypeHeader.value.indexOf('msgpack') !== -1;
       if (renderedRequest.body.mimeType === CONTENT_TYPE_FORM_URLENCODED) {
         requestBody = buildQueryStringFromParams(renderedRequest.body.params || [], false);
+      } else if (isMsgpack) {
+        const body = encode(JSON.parse(renderedRequest.body.text));
+        const path = `/tmp/insomnia-msgpack-${renderedRequest._id}`;
+        fs.writeFileSync(path, body);
+        const fd = fs.openSync(path, 'r');
+        setOpt(Curl.option.INFILESIZE_LARGE, body.length);
+        setOpt(Curl.option.UPLOAD, 1);
+        setOpt(Curl.option.READDATA, fd);
+
+        // We need this, otherwise curl will send it as a POST
+        setOpt(Curl.option.CUSTOMREQUEST, renderedRequest.method);
+        const fn = () => {
+          fs.closeSync(fd);
+          fs.unlink(path, () => {});
+        };
+
+        curl.on('end', fn);
+        curl.on('error', fn);
       } else if (renderedRequest.body.mimeType === CONTENT_TYPE_FORM_DATA) {
         const params = renderedRequest.body.params || [];
         const { filePath: multipartBodyPath, boundary, contentLength } = await buildMultipart(
@@ -824,6 +846,7 @@ export async function send(
   requestId: string,
   environmentId?: string,
   extraInfo?: ExtraRenderInfo,
+  request?: Request,
 ): Promise<ResponsePatch> {
   console.log(`[network] Sending req=${requestId}`);
 
@@ -841,8 +864,13 @@ export async function send(
     await delay(delayMillis);
   }
 
+  if (request) {
+    requestId = request._id;
+  } else {
+    request = await models.request.getById(requestId);
+  }
+
   // Fetch some things
-  const request = await models.request.getById(requestId);
   const settings = await models.settings.getOrCreate();
   const ancestors = await db.withAncestors(request, [
     models.request.type,

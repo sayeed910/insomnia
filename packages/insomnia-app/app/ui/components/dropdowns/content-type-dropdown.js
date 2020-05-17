@@ -13,6 +13,7 @@ import {
   CONTENT_TYPE_XML,
   CONTENT_TYPE_EDN,
   getContentTypeName,
+  CONTENT_TYPE_MOUCHAK, CONTENT_TYPE_MSGPACK,
 } from '../../../common/constants';
 import { showModal } from '../modals/index';
 import AlertModal from '../modals/alert-modal';
@@ -109,6 +110,8 @@ class ContentTypeDropdown extends React.PureComponent<Props> {
             <i className="fa fa-code" /> Text
           </span>
         </DropdownDivider>
+        {this._renderDropdownItem(CONTENT_TYPE_MOUCHAK)}
+        {this._renderDropdownItem(CONTENT_TYPE_MSGPACK)}
         {this._renderDropdownItem(CONTENT_TYPE_JSON)}
         {this._renderDropdownItem(CONTENT_TYPE_XML)}
         {this._renderDropdownItem(CONTENT_TYPE_YAML)}
